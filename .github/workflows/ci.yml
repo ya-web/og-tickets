@@ -12,6 +12,7 @@ permissions:
 
 env:
   WORK_PATH: '/home/ubuntu/og-tickets/backend'
+  SCRIPTS_PATH: '/home/ubuntu/og-tickets/.github/scripts'
   DOCKER_IMAGE: 'tixidest/ogtickets-backend:latest'
 
 defaults:
@@ -28,6 +29,7 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             backend
+            .github
 
       - name: Cache .git directory
         id: cache-git
@@ -59,33 +61,35 @@ jobs:
     steps:
       - name: Check if Docker is set up
         run: |
-          .github/scripts/verify-docker.sh
+          ${SCRIPTS_PATH}/verify-docker.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Clean up Docker resources
         run: |
-          .github/scripts/cleanup-swarm.sh
-          .github/scripts/cleanup-docker.sh
+          ${SCRIPTS_PATH}/cleanup-swarm.sh
+          ${SCRIPTS_PATH}/cleanup-docker.sh
           echo "Ressources Docker nettoyées."
 
   build-image:
     runs-on: self-hosted
     needs: [init-project, init-docker]
+    defaults:
+      run:
+        working-directory: ${{ env.WORK_PATH }}
     steps:
-      - name: Create temporary directory for secrets
+      - name: Create directory for secrets
         run: |
           export SECRETS_DIR=${WORK_PATH}/secrets
           echo "SECRETS_DIR=$SECRETS_DIR" >> $GITHUB_ENV
-          .github/scripts/create-dir.sh "$SECRETS_DIR" "secrets"
+          ${SCRIPTS_PATH}/create-dir.sh "$SECRETS_DIR" "secrets"
 
       - name: Write secret to temporary file
         run: |
           echo "Écriture de la clé secrète dans le fichier temporaire..."
           export SECRET_KEY_FILE=${SECRETS_DIR}/secret_key.txt
           echo "SECRET_KEY_FILE=$SECRET_KEY_FILE" >> $GITHUB_ENV
-          cd "$SECRETS_DIR" || (echo "Erreur lors de la navigation vers le répertoire des secrets." && exit 1)
           echo "Création du fichier de clé secrète..."
           file_creation_error() {
             local file_name=$1
@@ -106,12 +110,13 @@ jobs:
           echo "${{ secrets.EMAIL_HOST_PASSWORD }}" > "email_host_password.txt" || file_creation_error "email_host_password.txt"
           echo "${{ secrets.EMAIL_USE_TLS }}" > "email_use_tls.txt" || file_creation_error "email_use_tls.txt"
           echo "${{ secrets.DEFAULT_FROM_EMAIL }}" > "default_from_email.txt" || file_creation_error "default_from_email.txt"
-          for file in "secret_key db_user db_password db_name db_host allowed_hosts sentry_dsn email_host email_port email_host_user email_host_password email_use_tls default_from_email cors_allowed_origins"; do
+          for file in secret_key db_user db_password db_name db_host allowed_hosts cors_allowed_origins sentry_dsn email_host email_port email_host_user email_host_password email_use_tls default_from_email; do
             chmod 600 "${SECRETS_DIR}/${file}.txt"
             echo "Vérification de la création du fichier ${file}.txt..."
-            .github/scripts/check-file-creation.sh "${SECRETS_DIR}" "${file}.txt"
+            ${SCRIPTS_PATH}/check-file-creation.sh "${SECRETS_DIR}" "${file}.txt"
           done
           echo "Fichiers de secrets créés avec succès."
+        shell: bash
 
       - name: Build Docker image
         run: |
@@ -121,15 +126,18 @@ jobs:
           --build-arg DEBUG=false \
           --secret id=secret_key,src="${SECRET_KEY_FILE}" \
           -t "${DOCKER_IMAGE}" \
-          -f "${WORK_PATH}/Dockerfile" "${WORK_PATH}";then
+          -f Dockerfile .;then
           echo "Erreur : La construction de l'image Docker ${DOCKER_IMAGE} a échoué."
           exit 1
           fi
-          .github/scripts/build-image.sh "${DOCKER_IMAGE}" "${SECRET_KEY_FILE}" "${WORK_PATH}"
+          ${SCRIPTS_PATH}/check-image-build.sh "${DOCKER_IMAGE}"
 
   test:
     runs-on: self-hosted
     needs: [build-image]
+    defaults:
+      run:
+        working-directory: ${{ env.WORK_PATH }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v3
@@ -137,11 +145,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Cleanup previous Docker Compose environment
-        working-directory: ${{ env.WORK_PATH }}
         run: docker compose --file compose.test.yaml down --remove-orphans
 
       - name: Run tests
-        working-directory: ${{ env.WORK_PATH }}
         run: |
           echo "Lancement des tests..."
           docker compose --file compose.test.yaml up \
@@ -150,5 +156,5 @@ jobs:
 
       - name: Cleanup Docker resources after tests
         run: |
-          .github/scripts/cleanup-docker.sh
+          ${SCRIPTS_PATH}/cleanup-docker.sh
           echo "Ressources Docker nettoyées après les tests."
