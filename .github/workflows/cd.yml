@@ -97,9 +97,10 @@ jobs:
           echo "${{ secrets.ALLOWED_HOSTS }}" > "allowed_hosts.txt" || file_creation_error "allowed_hosts.txt"
           echo "${{ secrets.CORS_ALLOWED_ORIGINS }}" > "cors_allowed_origins.txt" || file_creation_error "cors_allowed_origins.txt"
           echo "${{ secrets.SENTRY_DSN }}" > "sentry_dsn.txt" || file_creation_error "sentry_dsn.txt"
+          echo "${{ secrets.STRIPE_SECRET_KEY }}" > "stripe_secret_key.txt" || file_creation_error "stripe_secret_key.txt"
           echo "${{ secrets.EMAIL_HOST }}" > "email_host.txt" || file_creation_error "email_host.txt"
           echo "${{ secrets.EMAIL_HOST_PASSWORD }}" > "email_host_password.txt" || file_creation_error "email_host_password.txt"
-          for file in secret_key db_user db_password db_name db_host allowed_hosts cors_allowed_origins sentry_dsn email_host email_host_password; do
+          for file in secret_key db_user db_password db_name db_host allowed_hosts cors_allowed_origins sentry_dsn email_host email_host_password stripe_secret_key; do
             chmod 600 "${SECRETS_DIR}/${file}.txt"
             echo "Vérification de la création du fichier ${file}.txt..."
             ${SCRIPTS_PATH}/check-file-creation.sh "${SECRETS_DIR}" "${file}.txt"
