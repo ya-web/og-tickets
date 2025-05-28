@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext.js';
 import { formatDate } from '../utils/utils.js';
 import { useNavigate } from 'react-router-dom';
+import LoadError from '../components/listItems/LoadError.js';
 
 /**
  * Page component for displaying and managing the cart.
@@ -29,7 +30,7 @@ const CartPage = () => {
   const [offers, setOffers] = useState([]);
 
   const [offersLoading, setOffersLoading] = useState(true);
-  const [offersError, setOffersError] = useState('');
+  const [offersError, setOffersError] = useState(false);
 
   /**
    * Context to check if the user is authenticated.
@@ -49,7 +50,7 @@ const CartPage = () => {
   useEffect(() => {
     let isMounted = true;
     setOffersLoading(true);
-    setOffersError('');
+    setOffersError(false);
     getOffers()
       .then((data) => {
         if (isMounted) {
@@ -61,7 +62,7 @@ const CartPage = () => {
         if (isMounted) {
           setOffers([]);
           setOffersLoading(false);
-          setOffersError('Erreur lors du chargement des offres.');
+          setOffersError(true);
         }
       });
     return () => {
@@ -78,6 +79,8 @@ const CartPage = () => {
       <h2>Contenu du panier</h2>
       {offersLoading ? (
         <LoadingSpinner />
+      ) : offersError ? (
+        <LoadError itemsLabel={'offre'} />
       ) : olympicEvents.length === 0 ? (
         <p className='info-message'>Votre panier est vide.</p>
       ) : (
